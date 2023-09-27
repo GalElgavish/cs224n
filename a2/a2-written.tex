@@ -1,0 +1,132 @@
+\documentclass[12pt]{article}
+\usepackage{mathtools}
+
+\title{CS 224n Assignment \#2: word2vec}
+
+\begin{document}
+
+\section*{1 Written: Understanding word2vec}
+
+\subsection*{(a)}
+$\pmb{y}_w$ is a one hot vector, so all the zeros in the summation will be dropped, except for where the value of $\pmb{y}_w$ is $1$.
+
+\subsection*{(b)}
+
+\subsubsection*{(i)}
+\begin{align*}
+    J_{\text{naive-softmax}}(\pmb{v}_c, o, U) &= -\log{ \frac{\exp{\pmb{u}_o^T \pmb{v}_c}}{\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}}}\\
+    &= -\pmb{u}_o^T \pmb{v}_c + \log{\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}}\\
+    \frac{\partial J_{\text{naive-softmax}}(\pmb{v}_c, o, U)}{\partial \pmb{v}_c} &= -\pmb{u}_o + \frac{1}{\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}} \frac{\partial \sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}}{\partial \pmb{v}_c}\\
+    &= -\pmb{u}_o + \frac{1}{\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}} \sum_{w \in \text{Vocab}}{\pmb{u}_w \exp{\pmb{u}_w^T \pmb{v}_c}}\\
+    &= -U \pmb{y} + \sum_{w \in \text{Vocab}}{\frac{\exp{\pmb{u}_w^T \pmb{v}_c}}{\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}} \pmb{u}_w}\\
+    &= -U \pmb{y} + \sum_{w \in \text{Vocab}}{\hat{\pmb{y}}_w \pmb{u}_w}\\
+    &= -U \pmb{y} + U \hat{\pmb{y}}\\
+    &= U (\hat{\pmb{y}} - \pmb{y})
+\end{align*}
+
+\subsubsection*{(ii)}
+\begin{itemize}
+    \item $\hat{\pmb{y}} = \pmb{y}$
+    \item $(\hat{\pmb{y}} - \pmb{y})$ is in the null space of $U$
+\end{itemize}
+
+
+\subsection*{(c)}
+
+\begin{itemize}
+    \item where $w=o$ we have:
+    \begin{align*}
+        \frac{\partial J_{\text{naive-softmax}}(\pmb{v}_c, o, U)}{\partial \pmb{u}_w} &= \frac{\partial}{\partial \pmb{u}_w}[-\pmb{u}_o^T \pmb{v}_c + \log{\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}}]\\
+        &= -\pmb{v}_c^T + \frac{1}{\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}} \frac{\partial}{\partial \pmb{u}_w}[\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}]\\
+        &= -\pmb{v}_c^T + \frac{\exp{\pmb{u}_w^T \pmb{v}_c}}{\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}} \pmb{v}_c^T\\
+        &= -\pmb{v}_c^T + \hat{\pmb{y}}_w \pmb{v}_c^T\\
+        &= (\hat{\pmb{y}}_w - 1) \pmb{v}_c^T
+    \end{align*}
+
+    \item where $w \neq o$ we have:
+    \begin{align*}
+        \frac{\partial J_{\text{naive-softmax}}(\pmb{v}_c, o, U)}{\partial \pmb{u}_w} &= \frac{\partial}{\partial \pmb{u}_w}[-\pmb{u}_o^T \pmb{v}_c + \log{\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}}]\\
+        &= \frac{1}{\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}} \frac{\partial}{\partial \pmb{u}_w}[\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}]\\
+        &= \frac{\exp{\pmb{u}_w^T \pmb{v}_c}}{\sum_{w \in \text{Vocab}}{\exp{\pmb{u}_w^T \pmb{v}_c}}} \pmb{v}_c^T\\
+        &= \hat{\pmb{y}}_w \pmb{v}_c^T\\
+        &= (\hat{\pmb{y}}_w - 0) \pmb{v}_c^T
+    \end{align*}
+\end{itemize}
+
+For it to be same shape as $\pmb{u}_w$, we need to transpose $\pmb{v}_c^T$, so the partial derivatives are:
+\begin{equation*}
+\frac{\partial J_{\text{naive-softmax}}(\pmb{v}_c, o, U)}{\partial \pmb{u}_w} =
+\begin{dcases*}
+(\hat{\pmb{y}}_w - 1) \pmb{v}_c & if $w=o$\,, \\[1ex]
+(\hat{\pmb{y}}_w - 0) \pmb{v}_c & if $w \neq o$\,.
+\end{dcases*}
+\end{equation*}
+or, for the general case:
+\begin{equation*}
+    \frac{\partial J_{\text{naive-softmax}}(\pmb{v}_c, o, U)}{\partial \pmb{u}_w} = (\hat{\pmb{y}}_w - \pmb{y}_w) \pmb{v}_c
+\end{equation*}
+
+\subsection*{(d)}
+\begin{equation*}
+    \frac{\partial J_{\text{naive-softmax}}(\pmb{v}_c, o, U)}{\partial U} = \pmb{v}_c (\hat{\pmb{y}} - \pmb{y})^T
+\end{equation*}
+
+\subsection*{(e)}
+\begin{equation*}
+\frac{\partial \max{\alpha x, x}}{\partial x} =
+\begin{dcases*}
+\alpha & if $x < 0$\,, \\[1ex]
+1 & if $x > 0$\,.
+\end{dcases*}
+\end{equation*}
+
+
+\subsection*{(f)}
+\begin{equation*}
+    \sigma'(x) = \sigma(x)(1-\sigma(x))
+\end{equation*}
+
+
+\subsection*{(g)}
+
+\subsubsection*{(i)}
+\begin{align*}
+    \frac{\partial J_{\text{neg-sample}}(\pmb{v}_c, o, U)}{\partial \pmb{v}_c} &= \frac{-\sigma(\pmb{u}_o^T \pmb{v}_c) (1 - \sigma(\pmb{u}_o^T \pmb{v}_c)) \pmb{u}_o}{\sigma(\pmb{u}_o^T \pmb{v}_c)} - \sum_{s=1}^K{\frac{-\sigma(-\pmb{u}_{w_s}^T \pmb{v}_c) (1 - \sigma(-\pmb{u}_{w_s}^T \pmb{v}_c)) \pmb{u}_{w_s}}{\sigma(-\pmb{u}_{w_s}^T \pmb{v}_c)}}\\
+    &= (\sigma(\pmb{u}_o^T \pmb{v}_c) - 1) \pmb{u}_o + \sum_{s=1}^K{-(\sigma(-\pmb{u}_{w_s}^T \pmb{v}_c) - 1) \pmb{u}_{w_s}}\\
+    \frac{\partial J_{\text{neg-sample}}(\pmb{v}_c, o, U)}{\partial \pmb{u}_o} &= \frac{-\sigma(\pmb{u}_o^T \pmb{v}_c) (1 - \sigma(\pmb{u}_o^T \pmb{v}_c)) \pmb{u}_o}{\sigma(\pmb{u}_o^T \pmb{v}_c)}\\
+    &= (\sigma(\pmb{u}_o^T \pmb{v}_c) - 1) \pmb{v}_c\\
+    \frac{\partial J_{\text{neg-sample}}(\pmb{v}_c, o, U)}{\partial -\pmb{u}_{w_s}} &= (\sigma(\pmb{u}_{w_s}^T \pmb{v}_c) - 1) \pmb{v}_c
+\end{align*}
+
+\subsubsection*{(ii)}
+\begin{equation*}
+    (\sigma(U_{o,\{w_1,...,w_K\}}^T) - \pmb{1}) \pmb{v}_c
+\end{equation*}
+
+
+\subsection*{(h)}
+\begin{align*}
+    \frac{\partial J_{\text{neg-sample}}(\pmb{v}_c, o, U)}{\partial -\pmb{u}_{w_s}} &= \frac{\partial}{\partial -\pmb{u}_{w_s}} - \sum_{\substack{1 \leq t \leq K \\ \pmb{w}_t = \pmb{w}_s}}{\log \sigma(-\pmb{u}_{w_t}^T \pmb{v}_c)}\\
+    &= - \sum_{\substack{1 \leq t \leq K \\ \pmb{w}_t = \pmb{w}_s}}{\frac{-\sigma(-\pmb{u}_{w_t}^T \pmb{v}_c) (1 - \sigma(-\pmb{u}_{w_t}^T \pmb{v}_c)) \pmb{v}_c}{\sigma(-\pmb{u}_{w_t}^T \pmb{v}_c)}}\\
+    &= \sum_{\substack{1 \leq t \leq K \\ \pmb{w}_t = \pmb{w}_s}}{(\sigma(-\pmb{u}_{w_t}^T \pmb{v}_c) - 1) \pmb{v}_c}
+\end{align*}
+
+
+\subsection*{(i)}
+
+\subsubsection*{(i)}
+\begin{equation*}
+    \frac{\partial J_{\text{skip-gram}}(\pmb{v}_c, w_{t-m},..., w_{t+m}, U)}{\partial U} = \sum_{\substack{-m \leq j \leq m \\ j \neq 0}}{\frac{\partial J_{\text{skip-gram}}(\pmb{v}_c, w_{t+j}, U)}{\partial U}}
+\end{equation*}
+
+\subsubsection*{(ii)}
+\begin{equation*}
+    \frac{\partial J_{\text{skip-gram}}(\pmb{v}_c, w_{t-m},..., w_{t+m}, U)}{\partial \pmb{v}_c} = \sum_{\substack{-m \leq j \leq m \\ j \neq 0}}{\frac{\partial J_{\text{skip-gram}}(\pmb{v}_c, w_{t+j}, U)}{\partial \pmb{v}_c}}
+\end{equation*}
+
+\subsubsection*{(iii)}
+\begin{equation*}
+    \frac{\partial J_{\text{skip-gram}}(\pmb{v}_c, w_{t-m},..., w_{t+m}, U)}{\partial \pmb{v}_w} = 0
+\end{equation*}
+
+\end{document}
