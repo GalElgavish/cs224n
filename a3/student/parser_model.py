@@ -107,10 +107,7 @@ class ParserModel(nn.Module):
         ###     Gather: https://pytorch.org/docs/stable/torch.html#torch.gather
         ###     View: https://pytorch.org/docs/stable/tensors.html#torch.Tensor.view
         ###     Flatten: https://pytorch.org/docs/stable/generated/torch.flatten.html
-        x = []
-        for b in range(w.shape[0]):
-            x.append(torch.flatten(torch.index_select(self.embeddings, 0, w[b])))  # (n_features * embed_size,)
-        x = torch.vstack(x)  # (batch_size, n_features * embed_size)
+        x = torch.index_select(self.embeddings, 0, torch.flatten(w)).view(w.size(0), -1)
         ### END YOUR CODE
         return x
 
