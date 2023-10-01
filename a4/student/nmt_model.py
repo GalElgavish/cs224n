@@ -86,7 +86,7 @@ class NMT(nn.Module):
                                         device=self.device)
         self.encoder = nn.LSTM(input_size=embed_size, hidden_size=hidden_size, bidirectional=True,
                                device=self.device)
-        self.decoder = nn.LSTMCell(input_size=hidden_size, hidden_size=hidden_size, device=self.device)
+        self.decoder = nn.LSTMCell(input_size=hidden_size + embed_size, hidden_size=hidden_size, device=self.device)
         self.h_projection = nn.Linear(in_features=2 * hidden_size, out_features=hidden_size, bias=False,
                                       device=self.device)
         self.c_projection = nn.Linear(in_features=2 * hidden_size, out_features=hidden_size, bias=False,
@@ -284,7 +284,7 @@ class NMT(nn.Module):
         dec_state = dec_init_state
         o_prev = torch.zeros((enc_hiddens_proj.size(0), enc_hiddens_proj.size(2)))  # (b, h)
         for Y_t in torch.split(Y, split_size_or_sections=1, dim=0):  # (1, b, e)
-            Ybar_t = torch.cat((Y_t.squeeze(), o_prev), 1)  # (b, e+h)
+            Ybar_t = torch.cat((Y_t.squeeze(0), o_prev), 1)  # (b, e+h)
             dec_state, combined_output, e_t = self.step(
                 Ybar_t=Ybar_t,
                 dec_state=dec_state,
@@ -351,7 +351,9 @@ class NMT(nn.Module):
         ###         https://pytorch.org/docs/stable/torch.html#torch.unsqueeze
         ###     Tensor Squeeze:
         ###         https://pytorch.org/docs/stable/torch.html#torch.squeeze
-
+        dec_state = self.decoder(Ybar_t, dec_state)  # (b, h), (b, h)
+        dec_hidden, dec_cell = dec_state  # (b, h), (b, h)
+        e_t = torch.bmm(enc_hiddens_proj, dec_hidden.unsqueeze(-1)).squeeze(-1)  # shape(b, src_len)
         ### END YOUR CODE
 
         # Set e_t to -inf where enc_masks has 1
@@ -385,7 +387,16 @@ class NMT(nn.Module):
         ###         https://pytorch.org/docs/stable/torch.html#torch.cat
         ###     Tanh:
         ###         https://pytorch.org/docs/stable/torch.html#torch.tanh
-
+        # 1
+        alpha_t = nn.functional.softmax(e_t, 1)  # shape(b, src_len)
+        # 2
+        a_t = torch.bmm(alpha_t.unsqueeze(1), enc_hiddens).squeeze(1)  # shape(b, 2*h)
+        # 3
+        U_t = torch.cat((a_t, dec_hidden), 1)  # shape(b, 3*h)
+        # 4
+        V_t = self.combined_output_projection(U_t)  # shape(b, h)
+        # 5
+        O_t = self.dropout(torch.nn.functional.tanh(V_t))  # shape(b, h)
         ### END YOUR CODE
 
         combined_output = O_t
